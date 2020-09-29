@@ -13,6 +13,23 @@ class CommonWrapper
     }
   end
 
+  def subscriptions_montly_report_for(project_id, ext = 'csv')
+    ext = 'csv' unless %w[csv xls].include?(ext)
+    @api_key = proxy_api_key
+    uri = services_endpoint[:proxy_service]
+    uri.path = "/v1/projects/#{project_id}/subscriptions_monthly_report_for_project_owners.#{ext}"
+    request(uri.to_s, {}).run
+  end
+
+  def subscriptions_report_for(project_id, ext = 'csv')
+    ext = 'csv' unless %w[csv xls].include?(ext)
+    @api_key = proxy_api_key
+    uri = services_endpoint[:proxy_service]
+    uri.path = "/v1/projects/#{project_id}/subscriptions_report_for_project_owners.#{ext}"
+    request(uri.to_s, {}).run
+  end
+
+
   def list_subscriptions(opts = {})
     @api_key = common_api_key
     opts[:limit] = 10 unless opts[:limit].present? || opts[:limit].to_i > 30
@@ -792,7 +809,7 @@ class CommonWrapper
     }.merge!({ 'Authorization' => "Bearer #{@api_key}" })
 
     if Rails.env.development?
-      h.merge!({ 'X-Forwarded-For' => current_ip })
+      h.merge!({ 'X-Forwarded-For' => (current_ip||'127.0.0.1') })
     end
 
     h

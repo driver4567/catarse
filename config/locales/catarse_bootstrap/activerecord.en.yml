@@ -1,5 +1,6 @@
 en:
   activerecord:
+    publish_by_steps_fields_errors: Saving info was not possible. Check errors on page and try again.
     models:
       channel: Channel
       project: Project
@@ -399,6 +400,9 @@ en:
     delete:
       posts: New successfully deleted
     video_regex_validation: only Youtube or Vimeo URLs are accepted
+    solidarity_service_fee: 'Taxes for projects %{solidarity_name} must be between %{min_service_fee}% and %{max_service_fee}%.'
+    solidarity_service_fee_failed: 'Taxes for solidarity projects can only be changed on official campaigns.'
+
   payment:
     state:
       boletobancario:
@@ -458,7 +462,8 @@ en:
     zip_code: Zip code
     open_questions: open_questions
     multiple_choice_questions: multiple_choice_questions
-    shipping_choice: Delivery place
+    # shipping_choice: Delivery place
+    shipping_amount: Delivery price
     shipping_option: Send
   user:
     no_name: Unnamed

@@ -5,7 +5,7 @@ class PaymentObserver < ActiveRecord::Observer
 
   def after_save(payment)
     contribution = payment.contribution
-    contribution.notify_to_contributor(:payment_slip) if payment.slip_payment? && payment.gateway_data
+    contribution.notify_to_contributor(:payment_slip) if contribution.project.open_for_contributions? && payment.slip_payment? && payment.gateway_data
   end
 
   def from_pending_to_paid(payment)
@@ -78,7 +78,9 @@ class PaymentObserver < ActiveRecord::Observer
 
     unless payment.paid_at.present?
       contribution.notify_to_contributor(:confirm_contribution)
-      ProjectScoreStorageRefreshWorker.perform_async(project.id) if project.open_for_contributions?
+      ProjectScoreStorageRefreshWorker.perform_async(project.id)
+      ProjectMetricStorageRefreshWorker.perform_async(project.id)
+      RewardMetricStorageRefreshWorker.perform_async(contribution.reward_id) if contribution.reward_id.present?
       if project.successful? && project.successful_pledged_transaction
         transfer_diff = (
           project.paid_pledged - project.all_pledged_kind_transactions.sum(:amount))

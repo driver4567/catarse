@@ -53,6 +53,8 @@ Catarse::Application.routes.draw do
     # mount CatarseWepay::Engine => "/", as: :catarse_wepay
     mount Dbhero::Engine => '/dbhero', as: :dbhero
 
+    resources :home_banners, path: '/home_banners', controller: 'home/banners'
+
     resources :categories, only: [] do
       member do
         get :subscribe, to: 'categories/subscriptions#create'
@@ -70,6 +72,7 @@ Catarse::Application.routes.draw do
     resources :flexible_projects, controller: 'projects', except: [:index] do
       member do
         get :publish
+        get 'publish-by-steps'
         get :push_to_online
         get :validate_publish
         get :finish
@@ -83,13 +86,17 @@ Catarse::Application.routes.draw do
       end
     end
     resources :projects, only: %i[create update edit new show] do
+      resources :project_report_exports, controller: 'projects/project_report_exports'
       get 'subscriptions/:any', to: 'projects#show', on: :member
+      post 'subscriptions/:any', to: 'projects#show', on: :member
       resources :accounts, only: %i[create update]
       resources :posts, controller: 'projects/posts', only: %i[destroy show create]
       resources :goals
       resources :rewards do
         member do
           get :toggle_survey_finish
+          post :upload_image
+          delete :delete_image
         end
         resources :surveys, only: [:new], controller: 'surveys'
         post :sort, on: :member
@@ -114,6 +121,8 @@ Catarse::Application.routes.draw do
         put :credits_checkout, on: :member
       end
 
+      resources :integrations, { only: [:index, :create, :update], controller: 'projects/integrations' }
+
       collection do
         get :fallback_create, to: 'projects#create'
       end
@@ -136,6 +145,7 @@ Catarse::Application.routes.draw do
         get 'embed_panel'
         get 'send_to_analysis'
         get 'publish'
+        get 'publish-by-steps'
         get 'validate_publish'
         get 'push_to_online'
       end
@@ -168,6 +178,7 @@ Catarse::Application.routes.draw do
     get '/privacy-policy' => redirect('https://crowdfunding.catarse.me/legal/politica-de-privacidade')
     get '/start' => redirect('https://crowdfunding.catarse.me/comece')
     get '/start-sub' => redirect('https://crowdfunding.catarse.me/comece')
+    get '/solidaria' => redirect('https://crowdfunding.catarse.me/solidaria')
     get '/jobs' => 'high_voltage/pages#show', id: 'jobs'
     get '/hello' => redirect('/start')
     get '/press' => redirect('https://crowdfunding.catarse.me/imprensa')
@@ -196,7 +207,7 @@ Catarse::Application.routes.draw do
           post 'batch_approve'
           post 'batch_manual'
           post 'batch_reject'
-          post 'process_transfers'
+          #post 'process_transfers'
         end
       end
 

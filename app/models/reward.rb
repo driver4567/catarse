@@ -11,9 +11,12 @@ class Reward < ActiveRecord::Base
 
   belongs_to :project
   has_many :payments, through: :contributions
+  has_many :contributions, dependent: :nullify
   has_many :shipping_fees, dependent: :destroy
   has_one :survey
-  has_many :contributions, dependent: :nullify
+  has_one :reward_metric_storage, dependent: :destroy
+
+  mount_uploader :uploaded_image, RewardUploader
 
   accepts_nested_attributes_for :shipping_fees, allow_destroy: true
   ranks :row_order, with_same: :project_id
@@ -74,6 +77,10 @@ class Reward < ActiveRecord::Base
 
   def total_compromised
     paid_count + in_time_to_confirm
+  end
+
+  def refresh_reward_metric_storage
+    pluck_from_database('refresh_reward_metric_storage')
   end
 
   def paid_count

@@ -1,11 +1,15 @@
 # coding: utf-8
 # frozen_string_literal: true
+require 'uri'
+require 'json'
 
 class ApplicationController < ActionController::Base
   EMAIL_REGEX = /\A[\w+\-.]+@[a-z\d\-]+(\.[a-z\d\-]+)*\.[a-z]+\z/i
   include Concerns::ExceptionHandler
   include Concerns::SocialHelpersHandler
   include Concerns::AnalyticsHelpersHandler
+  include Concerns::PixelHelpersHandler
+  include Concerns::KondutoHandler
   include Pundit
   before_action :redirect_when_zendesk_session, unless: :devise_controller?
 
@@ -29,10 +33,11 @@ class ApplicationController < ActionController::Base
   before_action :force_www
 
   def referral
-    {
-      ref: cookies[:referral_link],
-      domain: cookies[:origin_referral]
-    }
+    #ctrse_origin is created on frontend (analytics.js).
+    #Expected to have this fields: domain,ref,campaign,source,medium,content,term to create an Origin object.
+    json = URI.unescape(cookies[:ctrse_origin]) if !cookies[:ctrse_origin].blank?
+    ctrse_origin = (JSON.parse(json) if !json.nil?) || {}
+    ctrse_origin.with_indifferent_access
   end
 
   def is_projects_home?
@@ -48,15 +53,7 @@ class ApplicationController < ActionController::Base
   end
 
   def referral_it!
-    if request.env['HTTP_REFERER'] =~ /catarse\.me/
-      # For local referrers we only want to store the first ref parameter
-      cookies[:referral_link] ||= build_cookie_structure(params[:ref])
-      cookies[:origin_referral] ||= build_cookie_structure(request.env['HTTP_REFERER'])
-    else
-      # For external referrers should always overwrite referral_link
-      cookies[:referral_link] = build_cookie_structure((params[:ref] || cookies[:referral_link]))
-      cookies[:origin_referral] = build_cookie_structure((request.env['HTTP_REFERER'] || cookies[:origin_referral]))
-    end
+    #does nothing because referral cookie now resides on analytics.js. Will be removed!
   end
 
   def build_cookie_structure(value)
@@ -153,9 +150,7 @@ class ApplicationController < ActionController::Base
   end
 
   def configure_permitted_parameters
-    devise_parameter_sanitizer.for(:sign_up) do |u|
-      u.permit(:name, :email, :password, :newsletter)
-    end
+    devise_parameter_sanitizer.permit(:sign_up, keys: %i[name email password newsletter])
   end
 
   def after_sign_in_path_for(resource)

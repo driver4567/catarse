@@ -3,6 +3,10 @@
 class ProjectObserver < ActiveRecord::Observer
   observe :project
 
+  def after_create(project)
+    project.create_event_to_state
+  end
+
   def before_save(project)
     if project.try(:online_days_changed?) || project.try(:expires_at).nil?
       project.update_expires_at
@@ -20,6 +24,10 @@ class ProjectObserver < ActiveRecord::Observer
       ProjectDownloaderWorker.perform_async(project.id)
     end
 
+    project.index_on_common
+  end
+
+  def after_destroy(project)
     project.index_on_common
   end
 
@@ -54,6 +62,7 @@ class ProjectObserver < ActiveRecord::Observer
     )
 
     FacebookScrapeReloadWorker.perform_async(project.direct_url)
+    ProjectMetricStorageRefreshWorker.perform_in(5.seconds, project.id)
   end
 
   def from_online_to_draft(project)
@@ -61,7 +70,7 @@ class ProjectObserver < ActiveRecord::Observer
   end
 
   def from_successful_to_rejected(project)
-    BalanceTransaction.insert_project_refund_contributions(project.id)
+    #BalanceTransaction.insert_project_refund_contributions(project.id)
     refund_all_payments(project)
     ProjectNotification.where(user: project.user, template_name: 'project_success').where('deliver_at > now()').destroy_all
     project.notify_owner(:project_canceled)

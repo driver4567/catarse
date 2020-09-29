@@ -22,6 +22,10 @@ class BalanceTransaction < ActiveRecord::Base
     balance_transferred_to
     balance_received_from
     revert_chargeback
+    contribution_payment
+    project_antecipation_fee
+    antecipation_fee
+    balance_transaction_fee
   ].freeze
 
   belongs_to :project
@@ -45,6 +49,7 @@ class BalanceTransaction < ActiveRecord::Base
         from_user_name: self.from_user.try(:display_name),
         to_user_name: self.to_user.try(:display_name),
         service_fee: self.project.try(:service_fee),
+        antecipation_fee: self.project.try(:antecipation_fee),
         contributor_name: self.contribution.try(:user).try(:display_name),
         subscriber_name: self.subscription_payment.try(:user).try(:display_name),
         subscription_reward_label: self.subscription_payment.try(:reward).try(:display_label),
@@ -60,23 +65,25 @@ class BalanceTransaction < ActiveRecord::Base
     Raven.extra_context({})
   end
 
-  def self.insert_balance_transfer_between_users(from_user, to_user)
+  def self.insert_balance_transfer_between_users(from_user, to_user, amount_to_transfer = nil)
     from_user.reload
     return if from_user.total_balance <= 0
+    return if amount_to_transfer.present? && from_user.total_balance < amount_to_transfer
+    amount_to_transfer = from_user.total_balance if amount_to_transfer.nil?
 
     transaction do
       create!(
         user_id: from_user.id,
         from_user_id: from_user.id,
         to_user_id: to_user.id,
-        amount: from_user.total_balance*-1,
+        amount: amount_to_transfer*-1,
         event_name: 'balance_transferred_to'
       )
       create!(
         user_id: to_user.id,
         from_user_id: from_user.id,
         to_user_id: to_user.id,
-        amount: from_user.total_balance,
+        amount: amount_to_transfer,
         event_name: 'balance_received_from'
       )
     end
@@ -134,7 +141,7 @@ class BalanceTransaction < ActiveRecord::Base
     return if payment.chargedback_on_balance?
 
     create!(
-      user_id: contribution.project.user_id,
+      user_id: payment.project.user_id,
       event_name: 'subscription_payment_chargedback',
       amount: ((payment.amount - (payment.amount * payment.project.service_fee)) * -1),
       subscription_payment_uuid: payment.id,
@@ -185,7 +192,6 @@ class BalanceTransaction < ActiveRecord::Base
 
   def self.insert_contribution_refund(contribution_id)
     contribution = Contribution.find contribution_id
-    project = contribution.project
     return unless contribution.confirmed?
     return if contribution.balance_refunded?
 

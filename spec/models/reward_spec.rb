@@ -32,6 +32,8 @@ RSpec.describe Reward, type: :model do
     it { is_expected.to belong_to :project }
     it { is_expected.to have_many :contributions }
     it { is_expected.to have_many(:payments).through(:contributions) }
+    it { is_expected.to have_one(:reward_metric_storage).dependent(:destroy) }
+    it { is_expected.to have_many(:shipping_fees).dependent(:destroy) }
   end
 
   it 'should have a minimum value' do
@@ -182,6 +184,28 @@ RSpec.describe Reward, type: :model do
         create(:pending_contribution, reward: reward, project: reward.project)
       end
       it { is_expected.to eq(false) }
+    end
+  end
+
+  describe '.refresh_reward_metric_storage' do
+    let(:reward) { create(:reward, maximum_contributions: 20) }
+    before do
+      create(:confirmed_contribution, reward: reward, project: reward.project)
+      create(:pending_contribution, reward: reward, project: reward.project)
+      payment = create(:pending_contribution, reward: reward, project: reward.project).payments.first
+      payment.update_column(:created_at, 8.days.ago)
+
+      reward.refresh_reward_metric_storage
+    end
+
+    subject { reward.reward_metric_storage }
+
+    it "should have paid_count" do
+      expect(subject.data['paid_count']).to eq(1)
+    end
+
+    it "should have waiting_payment_count" do
+      expect(subject.data['waiting_payment_count']).to eq(1)
     end
   end
 end

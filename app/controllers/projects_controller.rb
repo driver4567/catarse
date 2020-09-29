@@ -44,7 +44,12 @@ class ProjectsController < ApplicationController
     )
     authorize @project
     if @project.save
-      redirect_after_create(@project)
+
+      if @project.is_supportive?
+        redirect_to publish_by_steps_project_path(@project)
+      else
+        redirect_after_create(@project)
+      end      
     else
       render :new
     end
@@ -56,6 +61,10 @@ class ProjectsController < ApplicationController
   end
 
   def publish
+    authorize resource
+  end
+
+  def publish_by_steps
     authorize resource
   end
 
@@ -153,10 +162,10 @@ class ProjectsController < ApplicationController
 
     # need to check this before setting new attributes
     should_validate = should_use_validate
-
-    resource.localized.attributes = permitted_params
+    
+    resource.localized.attributes = permitted_params.compact
     # can't use localized for fee
-    if permitted_params[:service_fee]
+    if permitted_params[:service_fee].present?
       resource.service_fee = permitted_params[:service_fee]
     end
 
@@ -305,4 +314,8 @@ class ProjectsController < ApplicationController
     end
   end
 
+  def policy(resource)
+    require_model = params.key?(:flexible_project) ? :flexible_project : :project
+    ProjectPolicy.new(current_user, resource, params.fetch(require_model, {}))
+  end
 end

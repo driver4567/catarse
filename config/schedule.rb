@@ -39,6 +39,7 @@ end
   "1".statistics_music
   "1".category_totals
   "1".statistics_publicacoes
+  "1".statistics_jornalismo
 ].each do |v|
   every 1.hour do
     command generate_psql_c(v)
@@ -65,18 +66,6 @@ end
 %w[
   public.moments_project_start
   public.moments_project_start_inferuser
-  stats.project_points
-  stats.aarrr_realizador_projetos
-  stats.financeiro_control_panel_simplificado
-  stats.financeiro_control_panel_simplificado_all_projects
-  stats.financeiro_int_payments_2016_simplificado
-  stats.financeiro_payment_refund_error_distribution
-  stats.financeiro_payments_paid_refunded
-  stats.financeiro_status_pagarme_catarse
-  stats.pagarme__payments
-  stats.subscription_info_by_week
-  stats.subscription_info_by_month
-  stats.financeiro_transferencias_desde_14032018
 ].each do |v|
   every 1.day, at: '00:30 am' do
     command generate_psql_c(v)
@@ -94,7 +83,7 @@ end
 end
 
 %w[
-  stats.growth_refresh
+  stats.daily_function
 ].each do |v|
   every 1.day, at: '00:30 am' do
     command generate_psql_function(v)

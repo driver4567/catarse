@@ -6,6 +6,7 @@ class Project < ActiveRecord::Base
   PUBLISHED_STATES = %w[online waiting_funds successful failed].freeze
   HEADLINE_MAXLENGTH = 100
   NAME_MAXLENGTH = 50
+  
 
   include Statesman::Adapters::ActiveRecordQueries
   include PgSearch
@@ -27,6 +28,8 @@ class Project < ActiveRecord::Base
             :display_pledged, :display_pledged_with_cents, :display_goal, :progress_bar,
             :status_flag, to: :decorator
 
+  before_save :set_adult_content_tag
+
   self.inheritance_column = 'mode'
   belongs_to :user
   belongs_to :category
@@ -37,6 +40,7 @@ class Project < ActiveRecord::Base
   has_one :project_total
   has_one :project_fiscal_data
   has_one :project_score_storage
+  has_one :project_metric_storage
   has_many :balance_transactions
   has_many :taggings
   has_many :goals, foreign_key: :project_id
@@ -51,9 +55,13 @@ class Project < ActiveRecord::Base
   has_many :budgets, class_name: 'ProjectBudget', inverse_of: :project
   has_many :unsubscribes
   has_many :reminders, class_name: 'ProjectReminder', inverse_of: :project
+  has_many :project_report_exports, dependent: :destroy
 
   has_many :project_transitions, autosave: false
 
+  has_many :integrations, class_name: 'ProjectIntegration', inverse_of: :project
+
+  accepts_nested_attributes_for :integrations, allow_destroy: true
   accepts_nested_attributes_for :rewards, allow_destroy: true
   accepts_nested_attributes_for :user
   accepts_nested_attributes_for :posts, allow_destroy: true, reject_if: ->(x) { x[:title].blank? || x[:comment_html].blank? }
@@ -73,6 +81,12 @@ class Project < ActiveRecord::Base
                   against: 'name',
                   using: :trigram,
                   ignoring: :accents
+
+  after_commit :start_metric_storage_worker, on: :create
+
+  def start_metric_storage_worker
+    ProjectMetricStorageRefreshWorker.perform_async(id)
+  end
 
   def self.pg_search(term)
     search_tsearch(term).presence || search_trm(term)
@@ -148,7 +162,7 @@ class Project < ActiveRecord::Base
   scope :of_current_week, -> {
     between_dates('online_at', 7.days.ago, Time.current)
   }
-
+  
   scope :by_permalink, ->(p) { without_state('deleted').where('lower(permalink) = lower(?)', p) }
   scope :recommended, -> { where(recommended: true) }
   scope :in_funding, -> { not_expired.with_states(['online']) }
@@ -248,6 +262,32 @@ class Project < ActiveRecord::Base
       template_name = 'invalid_finish'
       and created_at > (current_timestamp - '24 hours'::interval)
     }).exists?
+  end
+
+  def create_event_to_state
+    Rdevent.create(
+      user_id: user.id,
+      project_id: id,
+      event_name: "#{event_mode_prefix}project_#{state}"
+    )
+  end
+
+  def event_mode_prefix 
+    if is_supportive?
+      'solidaria_'
+    elsif is_sub?
+      'sub_'
+    else
+      ''
+    end
+  end
+
+  def is_supportive?
+    supportive_integration.present?
+  end
+
+  def supportive_integration
+    integrations.where(name: 'SOLIDARITY_SERVICE_FEE')
   end
 
   def has_blank_service_fee?
@@ -481,10 +521,36 @@ class Project < ActiveRecord::Base
     tags.map(&:name).join(', ')
   end
 
+  def set_adult_content_tag
+    
+    return if !should_include_adult_content_tag?
+    return if has_adult_content_tag? && content_rating >= 18
+
+    _all_tags = tags.map(&:name)
+    if should_include_adult_content_tag?
+      _all_tags |= [adult_content_admin_tag]
+    else
+      _all_tags = _all_tags.reject{|tag| tag == adult_content_admin_tag}
+    end
+        
+    self.tags = _all_tags.map do |name|
+      Tag.find_or_create_by(slug: name.parameterize) do |tag|
+        tag.name = name.strip
+      end
+    end
+  end
+
+  def should_include_adult_content_tag?
+    content_rating >= 18 && tags.map(&:name).exclude?(adult_content_admin_tag)
+  end
+
+  def has_adult_content_tag?
+    tags.map(&:name).include?(adult_content_admin_tag)
+  end
+
   def is_flexible?
     mode == 'flex'
   end
-
 
   def is_sub?
     mode == 'sub'
@@ -521,6 +587,14 @@ class Project < ActiveRecord::Base
 
   def refresh_project_score_storage
     pluck_from_database('refresh_project_score_storage')
+  end
+
+  def refresh_project_metric_storage
+    pluck_from_database('refresh_project_metric_storage')
+  end
+
+  def adult_content_admin_tag 
+    I18n.t('project.adult_content_admin_tag')
   end
 
   # State machine delegation methods
@@ -571,6 +645,7 @@ class Project < ActiveRecord::Base
       status: state,
       permalink: permalink,
       mode: mode,
+      service_fee: service_fee,
       about_html: about_html,
       budget_html: budget_html,
       online_days: online_days,

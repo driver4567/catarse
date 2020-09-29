@@ -1,10 +1,14 @@
 source 'https://rubygems.org'
+git_source(:github) { |repo| "https://github.com/#{repo}.git" }
 
-ruby '2.4.4'
+ruby '2.7.1'
 
 gem 'rails', '~> 4.2.11'
 gem 'rails-html-sanitizer', '~> 1.0.4'
 
+gem 'bigdecimal', '1.3.5'
+
+gem 'countries', '3.0.0'
 gem 'protected_attributes'
 gem 'rails-observers'
 gem 'rb-readline'
@@ -41,10 +45,8 @@ gem 'mixpanel-ruby'
 gem 'mixpanel_client'
 
 # Payment engines
-
-#gem 'catarse_pagarme', '~> 2.12.0'
-gem 'catarse_pagarme', github: 'catarse/catarse_pagarme', branch: 'feature/rates_per_project'
-#gem 'catarse_pagarme', path: '../catarse_pagarme'
+gem 'catarse_pagarme', '~> 2.16.2'
+# gem 'catarse_pagarme', path: '../catarse_pagarme'
 
 # Decorators
 gem 'draper'
@@ -63,7 +65,7 @@ gem 'simple_token_authentication', '~> 1.0' # see semver.org
 gem 'omniauth', '~> 1.3.2'
 gem 'omniauth-facebook'
 gem 'koala'
-gem 'devise', '3.5.10'
+gem 'devise', '4.7.2'
 gem 'pundit'
 gem 'json_web_token'
 
@@ -81,7 +83,7 @@ gem 'redactor-rails', github: 'catarse/redactor-rails', branch: 'master'
 
 # Uploads
 gem 'carrierwave', '~> 1.0'
-gem "mini_magick"
+gem 'mini_magick', '>= 4.9.4'
 
 # Other Tools
 gem 'excelinator'
@@ -136,7 +138,8 @@ group :development do
   gem 'foreman'
   gem 'better_errors'
   gem 'binding_of_caller'
-  gem 'thin'
+  #gem 'thin'
+  gem 'puma'
   # Uncomment only for optimization, should be commented on master branch
   # gem 'rack-mini-profiler'
   # gem 'ruby-prof'
@@ -149,6 +152,11 @@ group :test, :development do
   gem 'rspec-collection_matchers'
   gem 'pry'
   gem 'jasmine-rails'
+end
+
+group :sandbox, :test, :development do
+  gem 'faker'
+  gem 'cpf_faker'
 end
 
 group :test do
@@ -172,3 +180,4 @@ gem 'uglifier', '4.0.0'
 gem 'sprockets', '~> 3.7.2'
 gem "rack", ">= 1.6.11"
 gem "loofah", ">= 2.2.3"
+gem 'concurrent-ruby'

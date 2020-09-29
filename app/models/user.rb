@@ -41,7 +41,10 @@ class User < ActiveRecord::Base
   validates_uniqueness_of :permalink, allow_nil: true
   validates :permalink, exclusion: { in: %w[api cdn secure suporte],
                                      message: 'Endereço já está em uso.' }
-  validates_format_of :email, with: Devise.email_regexp, allow_blank: true, if: :email_changed?
+  validates_format_of :email,
+    with:  /\A[a-zA-Z0-9!#\\&$%'*+=?^`{}|~_-](\.?[a-zA-Z0-9\\!#$&%'*+=?^`{}|~_-]){0,}@[a-zA-Z0-9]+\.(?!-)([a-zA-Z0-9]?((-?[a-zA-Z0-9]+)+\.(?!-))){0,}[a-zA-Z0-9]{2,8}\z/,
+    allow_blank: true,
+    if: :email_changed?
 
   validates_presence_of :password, if: :password_required?
   validates_confirmation_of :password, if: :password_confirmation_required?
@@ -180,23 +183,24 @@ class User < ActiveRecord::Base
 
   def address_fields_validation
     if !reseting_password && (published_projects.present? || publishing_project || publishing_user_settings)
-      [:address_city, :address_zip_code, :phone_number, :address_neighbourhood, :address_street, :address_number].each do |field|
-        errors.add(field, :invalid) if !address.try(:send, field).present?
+      required_address_attributes = address.try(:required_attributes) || Address::REQUIRED_ATTRIBUTES
+      required_address_attributes.each do |attribute|
+        errors.add(attribute, :invalid) if address.try(:send, attribute).blank?
       end
     end
   end
 
   def owner_document_validation
     is_blacklisted = false
-   
+
     if cpf.present?
       document = BlacklistDocument.find_document cpf
       unless document.nil?
-        is_blacklisted = true        
+        is_blacklisted = true
       end
     end
 
-    document_is_invalid = cpf.present? && !(account_type != 'pf' ? CNPJ.valid?(cpf) : CPF.valid?(cpf))    
+    document_is_invalid = cpf.present? && !(account_type != 'pf' ? CNPJ.valid?(cpf) : CPF.valid?(cpf))
     is_contributing_or_publishing_project = published_projects.present? || contributed_projects.present? || publishing_project
 
     if cpf.present? && (is_blacklisted || (is_contributing_or_publishing_project && document_is_invalid))
